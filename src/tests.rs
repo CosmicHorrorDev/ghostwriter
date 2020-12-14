@@ -28,6 +28,17 @@ impl Read for ShortReader {
 }
 
 #[test]
+fn basic() {
+    let mut writer = EagerBufWriter::new(Vec::new());
+
+    writer.write(&[0, 1, 2, 3]).unwrap();
+    writer.flush().unwrap();
+
+    let inner = writer.into_inner().unwrap();
+    assert_eq!(inner, [0, 1, 2, 3]);
+}
+
+#[test]
 fn buffered_writer() {
     todo!("Figure out how we want to test stuff here");
 
