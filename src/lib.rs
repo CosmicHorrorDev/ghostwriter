@@ -19,32 +19,61 @@ enum Message {
 }
 
 fn spawn_writer_thread<W: 'static + Write + Send>(
-    writer: BufWriter<W>,
+    mut writer: BufWriter<W>,
 ) -> (SyncSender<Message>, JoinHandle<BufWriter<W>>) {
     let (sender, receiver) = sync_channel(0);
     let handle = thread::spawn(move || loop {
-        todo!()
+        match receiver.recv() {
+            Ok(msg) => match msg {
+                Message::Contents(contents) => {
+                    if let Err(error) = writer.write_all(&contents) {
+                        todo!()
+                    }
+                }
+                Message::Flush => {
+                    if let Err(error) = writer.flush() {
+                        todo!()
+                    }
+                }
+                Message::End => {
+                    if let Err(error) = writer.flush() {
+                        todo!()
+                    }
+
+                    return writer;
+                }
+            },
+            Err(_) => {
+                // TODO: what should be done here? This means the channel would be closed which
+                // means that `EagerBufWriter` wouldn't exist anymore either
+                return writer;
+            }
+        }
     });
 
     (sender, handle)
 }
 
+// TODO: have some mutex<arc<e>> or something for errors?
+// TODO: keep a condvar for being done flushing
 #[derive(Debug)]
-pub struct EagerBufWriter<W: Write + Send> {
+pub struct EagerBufWriter<W: 'static + Write + Send> {
     write_thread: JoinHandle<BufWriter<W>>,
     sender: SyncSender<Message>,
 }
 
 impl<W: 'static + Write + Send> EagerBufWriter<W> {
-    pub fn new(writer: W) -> EagerBufWriter<W> {
+    pub fn new(writer: W) -> Self {
         EagerBufWriter::with_capacity(DEFAULT_BUF_SIZE, writer)
     }
 
-    pub fn with_capacity(capacity: usize, writer: W) -> EagerBufWriter<W> {
-        // TODO: actually set up whatever the thread does
+    pub fn with_capacity(capacity: usize, writer: W) -> Self {
+        // let buf_writer = BufWriter::with_capacity(capacity, writer);
+        // let flushed = Condvar junk
+        // some sort of return error channel? Can I group stuff up better?
         let (sender, handle) = spawn_writer_thread(BufWriter::with_capacity(capacity, writer));
 
-        EagerBufWriter {
+        Self {
             write_thread: handle,
             sender,
         }
@@ -79,7 +108,7 @@ impl<W: 'static + Write + Send> EagerBufWriter<W> {
         todo!()
     }
 
-    pub fn into_inner(mut self) -> Result<W, IntoInnerError<EagerBufWriter<W>>> {
+    pub fn into_inner(mut self) -> Result<W, IntoInnerError<Self>> {
         todo!()
     }
 }
